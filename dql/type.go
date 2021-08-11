@@ -15,21 +15,20 @@ import (
 )
 
 type Type struct {
-	Name   string
-	Preds  []string // 谓词名称
-	RPreds []string // 反向谓词名称
+	Name   string   `json:"name"`
+	Fields []string `json:"fields,omitempty"`
 }
 
-func (t Type) Schema() string {
+func (t Type) Rdf() string {
 	var (
 		preds []string
 		r     string
 	)
-	for _, pred := range t.Preds {
+	for _, pred := range t.Fields {
+		if strings.HasPrefix(pred, "~") {
+			pred = fmt.Sprintf("<%s>", pred)
+		}
 		preds = append(preds, pred)
-	}
-	for _, pred := range t.RPreds {
-		preds = append(preds, fmt.Sprintf("<~%s>", pred))
 	}
 	if len(preds) > 0 {
 		r = fmt.Sprintf("type %s{\n\t%s\n}", t.Name, strings.Join(preds, "\n\t"))
@@ -69,7 +68,7 @@ func (t *Type) Unmarshal(s string) error {
 			continue
 		}
 		if strings.HasPrefix(line, "<~") && len(line) > 3 {
-			rplist = append(rplist, line[2:len(line)-1])
+			rplist = append(rplist, line[1:len(line)-1])
 		}
 		plist = append(plist, line)
 	}
@@ -77,7 +76,6 @@ func (t *Type) Unmarshal(s string) error {
 		return errFormat
 	}
 	t.Name = name
-	t.Preds = plist
-	t.RPreds = rplist
+	t.Fields = append(plist, rplist...)
 	return nil
 }
