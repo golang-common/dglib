@@ -19,20 +19,22 @@ import (
 	"strings"
 )
 
-// New 新建dgraph连接
+// NewClient 新建dgraph连接
 // target格式为 192.168.1.100:9080
 // 第一个返回值为dgraph操作对象
-// 第二个返回值为取消/关闭对象的方法
-func New(target string) (*Dql, error) {
-	grpcConn, err := grpc.DialContext(context.Background(), target, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
+func NewClient(targets []string) (*Client, error) {
+	var clients []api.DgraphClient
+	for _, target := range targets {
+		grpcConn, err := grpc.DialContext(context.Background(), target, grpc.WithInsecure())
+		if err != nil {
+			return nil, err
+		}
+		client := api.NewDgraphClient(grpcConn)
+		clients = append(clients, client)
 	}
-	dgClient := api.NewDgraphClient(grpcConn)
-	dgraph := dgo.NewDgraphClient(dgClient)
-	return &Dql{client: dgraph, cancel: func() error {
-		return grpcConn.Close()
-	}}, nil
+
+	dgraph := dgo.NewDgraphClient(clients...)
+	return &Client{client: dgraph}, nil
 }
 
 type Schema struct {
@@ -71,28 +73,59 @@ func (s Schema) ListPred() []Pred {
 	return r
 }
 
-type Dql struct {
+type Client struct {
 	client *dgo.Dgraph
-	cancel func() error
-	txn    *dgo.Txn
-	ctx    context.Context
 }
 
-func (d *Dql) SetTxn() {
-	d.ctx = context.Background()
-	d.txn = d.client.NewTxn()
+func (d *Client) Txn(ReadOnly ...bool) *Txn {
+	if len(ReadOnly) > 0 && ReadOnly[0] == true {
+		return &Txn{Txn: d.client.NewReadOnlyTxn(), Ctx: context.Background(), Readonly: ReadOnly[0]}
+	}
+	return &Txn{Txn: d.client.NewTxn(), Ctx: context.Background()}
 }
 
-func (d *Dql) SetRTxn() {
-	d.ctx = context.Background()
-	d.txn = d.client.NewReadOnlyTxn()
+func (d *Client) SetPred(pred Pred) error {
+	err := d.client.Alter(context.Background(), &api.Operation{
+		Schema: pred.Rdf(),
+	})
+	return err
 }
 
-func (d *Dql) GetSchemaAll() ([]Pred, []Type, error) {
+func (d *Client) DropPred(name string) error {
+	err := d.client.Alter(context.Background(), &api.Operation{
+		DropValue: name,
+		DropOp:    api.Operation_ATTR,
+	})
+	return err
+}
+
+func (d *Client) SetType(tp Type) error {
+	err := d.client.Alter(context.Background(), &api.Operation{
+		Schema: tp.Rdf(),
+	})
+	return err
+}
+
+func (d *Client) DropType(name string) error {
+	err := d.client.Alter(context.Background(), &api.Operation{
+		DropValue:       name,
+		DropOp:          api.Operation_TYPE,
+		RunInBackground: false,
+	})
+	return err
+}
+
+type Txn struct {
+	Txn      *dgo.Txn
+	Ctx      context.Context
+	Readonly bool
+	Closed   bool
+}
+
+func (d *Txn) GetSchemaAll() ([]Pred, []Type, error) {
 	const q = `schema{}`
 	var r Schema
-
-	resp, err := d.txn.Query(d.ctx, q)
+	resp, err := d.Txn.Query(context.Background(), q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,11 +136,11 @@ func (d *Dql) GetSchemaAll() ([]Pred, []Type, error) {
 	return r.ListPred(), r.ListType(), err
 }
 
-func (d *Dql) GetPred(pred string) (*Pred, error) {
+func (d *Txn) GetPred(pred string) (*Pred, error) {
 	const q = `schema(pred: %s){}`
 	var r Schema
 
-	resp, err := d.txn.Query(d.ctx, fmt.Sprintf(q, pred))
+	resp, err := d.Txn.Query(d.Ctx, fmt.Sprintf(q, pred))
 	if err != nil {
 		return nil, err
 	}
@@ -122,10 +155,10 @@ func (d *Dql) GetPred(pred string) (*Pred, error) {
 	return &p, nil
 }
 
-func (d *Dql) GetType(tp string) (*Type, error) {
+func (d *Txn) GetType(tp string) (*Type, error) {
 	const q = `schema(type: %s){}`
 	var r Schema
-	resp, err := d.txn.Query(d.ctx, fmt.Sprintf(q, tp))
+	resp, err := d.Txn.Query(d.Ctx, fmt.Sprintf(q, tp))
 	if err != nil {
 		return nil, err
 	}
@@ -138,43 +171,4 @@ func (d *Dql) GetType(tp string) (*Type, error) {
 	}
 	p := r.ListType()[0]
 	return &p, nil
-}
-
-func (d *Dql) SetPred(pred Pred) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
-		Schema: pred.Rdf(),
-	})
-	return err
-}
-
-func (d *Dql) DropPred(name string) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
-		DropValue: name,
-		DropOp:    api.Operation_ATTR,
-	})
-	return err
-}
-
-func (d *Dql) SetType(tp Type) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
-		Schema: tp.Rdf(),
-	})
-	return err
-}
-
-func (d *Dql) DropType(name string) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
-		DropValue:       name,
-		DropOp:          api.Operation_TYPE,
-		RunInBackground: false,
-	})
-	return err
-}
-
-func IndentJson(obj interface{}) string {
-	ret, err := json.MarshalIndent(obj, "", "\t")
-	if err != nil {
-		return err.Error()
-	}
-	return string(ret)
 }

@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+var PredMap = map[string]Pred{}
+
 // Pred 类型/边
 type Pred struct {
 	Predicate string   `json:"predicate"`
@@ -33,7 +35,7 @@ func (p Pred) String() string {
 func (p Pred) Rdf() string {
 	var (
 		model   = `$name: $type $indices .`
-		ptype   = string(p.Type)
+		ptype   = p.Type
 		indices []string
 	)
 	if p.Index && len(p.Tokenizer) > 0 {

@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+var TypeMap = map[string]Type{}
+
 type Type struct {
 	Name   string   `json:"name"`
 	Fields []string `json:"fields,omitempty"`
