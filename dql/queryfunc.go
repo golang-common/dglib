@@ -53,7 +53,7 @@ func (f Filter) Parse() (string, error) {
 		rplcList = append(rplcList, fs, vparse)
 	}
 	replacer := strings.NewReplacer(rplcList...)
-	return fmt.Sprintf(`(%s)`, replacer.Replace(f.Expr)), nil
+	return fmt.Sprintf(`%s`, replacer.Replace(f.Expr)), nil
 }
 
 type FFunc struct {

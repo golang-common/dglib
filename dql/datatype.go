@@ -63,34 +63,6 @@ var (
 		TypeGeo:      {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexGeo: {false, []string{FuncNear, FuncIntersects, FuncWithin, FuncContain}}}},
 		TypePassword: {Fs: []string{FuncHas}},
 	}
-	//TypeTokenMap = map[string][]string{
-	//	TypeDefault:  {IndexDefault},
-	//	TypeUid:      {},
-	//	TypeInt:      {IndexInt},
-	//	TypeFloat:    {IndexFloat},
-	//	TypeString:   {IndexHash, IndexExact, IndexTerm, IndexFulltext, IndexTrigram},
-	//	TypeBool:     {IndexBool},
-	//	TypeDateTime: {IndexYear, IndexMonth, IndexDay, IndexHour},
-	//	TypeGeo:      {IndexGeo},
-	//	TypePassword: {},
-	//}
-	//
-	//TokenFuncMap = map[string][]string{
-	//	IndexDefault:  {},
-	//	IndexInt:      {FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween},
-	//	IndexFloat:    {FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween},
-	//	IndexBool:     {},
-	//	IndexGeo:      {FuncNear, FuncWithin, FuncContain, FuncIntersects},
-	//	IndexYear:     {},
-	//	IndexMonth:    {},
-	//	IndexDay:      {},
-	//	IndexHour:     {},
-	//	IndexHash:     {},
-	//	IndexExact:    {},
-	//	IndexTerm:     {FuncTermAny, FuncTermAll},
-	//	IndexFulltext: {FuncTextAll, FuncTextAll},
-	//	IndexTrigram:  {FuncMatch, FuncRegexp},
-	//}
 )
 
 type typeAttr struct {
