@@ -1,0 +1,183 @@
+# dgraph-alpha 配置文件
+
+# my：alpha提供服务的端口，配置后其它server可以与其互通
+my: localhost:7080
+
+# zero-逗号分隔的zero地址列表(IP_ADDRESS:PORT)(default "localhost:5080")
+zero: localhost:5080
+
+# port-offset:增加所有已监听的端口号的值,为了方便快速设置[Internal=7080, HTTP=8080, Grpc=9080]
+port-offset: 0
+
+# security-安全设置
+# (default "token=; whitelist=;")
+# token: 设置后所有的admin请求都需要携带次令牌(http中携带X-Dgraph-AuthToken头，grpc中在context中携带"auth-token"字段)
+# whitelist：逗号分隔的IP白名单列表(144.142.126.254,127.0.0.1:127.0.0.3,192.168.0.0/16,host.docker.internal)
+security:
+  token:
+  whitelist: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1
+
+# tmp-临时缓存文件存放位置(default "t")
+tmp: /Users/lyonsdpy/Data/dgraph/tmp
+
+# wal-用于存储raft预写日志的目录(default "w")
+wal: /Users/lyonsdpy/Data/dgraph/wal
+
+# postings:用于存储发布列表的目录
+postings: /Users/lyonsdpy/Data/dgraph/postings
+
+# export-数据库导出文件目录(default "export")
+export: /Users/lyonsdpy/Data/dgraph/export
+
+# acl-[企业版功能]访问控制(default "access-ttl=6h; refresh-ttl=30d; secret-file=")
+# secret-file:用于生成JWT-TOKEN的源文件,必须大于30个ASCII字符
+# access-ttl:查询token的生存时间
+# refresh-ttl:更新token的生存时间
+acl:
+  secret-file: /Users/lyonsdpy/Data/dgraph/hmac_secret_file
+  access-ttl: 6h
+  refresh-ttl: 30d
+
+# tls传输加密配置
+# (default "use-system-ca=true; client-auth-type=VERIFYIFGIVEN; internal-port=false;")
+# ca-cert:ca证书文件，用于验证服务器证书，需要启用TLS
+# client-auth-type:客户端验证方式，只能取VERIFYIFGIVEN
+# client-cert(可选)：客户端证书文件用于本节点作为客户端连接集群中的其它节点
+# client-key(可选): 客户端私有key文件用于本节点作为客户端连接集群中的其它节点
+# internal-port(可选)：在群集节点之间启用节点间TLS加密
+# server-cert: 在群集中启动服务器所需的服务器证书文件
+# server-key: 在群集中启动服务器所需的服务器密钥文件
+# use-system-ca: 是否将系统CA包含到CA证书中
+tls:
+  ca-cert: /Users/lyonsdpy/Data/dgraph/tls/ca.crt
+  client-auth-type: VERIFYIFGIVEN
+  client-cert: /Users/lyonsdpy/Data/dgraph/tls/client.crane.crt
+  client-key: /Users/lyonsdpy/Data/dgraph/tls/client.crane.key
+  internal-port: false
+  server-cert: /Users/lyonsdpy/Data/dgraph/tls/node.crt
+  server-key: /Users/lyonsdpy/Data/dgraph/tls/node.key
+  use-system-ca: true
+
+# telemetry-遥测诊断配置(default "reports=true; sentry=true;")
+# reports: 发送匿名telemetry数据到dgraph设备
+# sentry: 发送崩溃时间到哨兵
+telemetry:
+  reports: true
+  sentry: true
+
+
+# survive-数据幸存方式(process 或 filesystem)
+# process: 在进程崩溃的情况下不会丢失数据，但在文件系统崩溃的情况下，行为将是不确定的
+# filesystem: 每次写入后都会调用阻塞同步，从而保证在硬重启时不会丢失数据
+survive: "process"
+
+# raft配置
+# (default "learner=false; snapshot-after-entries=10000;\
+# snapshot-after-duration=30m; pending-proposals=256; idx=; group=;")
+# group：指定一个raft组ID用于alpha指示zero加入
+# idx: 指定一个raft id用于alpha加入raft组
+# learner：指定该alpha为学习节点，学习模式中本节点不会参与raft选举，通常用于实现只读副本
+# pending-proposals: 变更的建议数量，用于速率限制
+# snapshot-after-duration：指示新raft快照的创建频率，为0表示禁用基于时间的快照
+# snapshot-after-entries：在N个Raft条目之后创建新Raft快照,此数字越低，创建快照的频率就越高,如果设置了基于时间快照，同样必须等待时间超时
+raft:
+  group:
+  idx:
+  learner: false
+  pending-proposals: 256
+  snapshot-after-duration: 30m
+  snapshot-after-entries: 10000
+
+# audit-[企业版功能]审计配置(default "compress=false; days=10; size=100; dir=; output=; encrypt-file=;")
+# compress:是否开启旧日志压缩
+# days:日志保存天数
+# encrypt-file:生成token的加密key文件保存位置
+# output:日志输出目录或者stdout
+# 日志最大大小,MB为单位,超过后会被滚动删除
+audit:
+  compress: false
+  days: 10
+  encrypt-file: ""
+  output: /Users/lyonsdpy/Data/dgraph/audit
+  size: 100
+
+# bager-dgraph使用的底层kv数据库(default "compression=snappy; numgoroutines=8;")
+# compression:指定加密算法[none, zstd:level, snappy],如设置"zstd:1" 设置使用zstd级别1加密
+# numgoroutines:badger.Stream使用的最大goroutine数
+bager:
+  compression: snappy
+  numgoroutines: 8
+
+# cache-缓存配置
+# percentage:各类缓存占比,总和必须是100(PostingListCache,PstoreBlockCache,PstoreIndexCache)
+# size-mb:总缓存大小,MB
+cache:
+  percentage: 0,65,35
+  size-mb: 1024
+
+# cdc-[企业版功能]数据变更捕获，用于监控数据库mutation和drop操作(Change Data Capture)
+# (default "file=; kafka=; sasl_user=; sasl_password=; ca_cert=; client_cert=; client_key=; sasl-mechanism=PLAIN;")
+# ca-cert: tls加密用的ca证书文件
+# client-cert: 客户端证书文件
+# client-key: 客户端key文件
+# file: cdc审计日志保存路径
+# kafka: 逗号分隔的kafka主机列表
+# sasl-mechanism: kafka的SASL机制(PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512)
+# sasl-password: kafka的SASL密码
+# sasl-user: kafka的SASL用户
+cdc:
+  ca-cert:
+  client-cert:
+  client-key:
+  file:
+  kafka:
+  sasl-mechanism: PLAIN
+  sasl-password:
+  sasl-user:
+
+# custom-tokenizers-逗号分隔的用户自定义索引文件(用go编译的.so文件)
+custom-tokenizers:
+
+# encryption-[企业版功能],Rest加密选项(default "key-file=")
+# key-file: 存储长度为16、24或32字节的对称密钥的文件。密钥大小决定所选的AES密码（分别为AES-128、AES-192和AES-256）
+encryption:
+  key-file:
+
+# graphql-graphql选项(default "introspection=true; debug=false; extensions=true; poll-interval=1s; lambda-url=;")
+# debug:开启诊断模式，会返回auth错误到客户端，不建议生产环境打开
+# extensions：graphql的返回body中是否包含扩展信息
+# introspection：打开graphql schema检查
+# lambda-url：实现自定义GraphQL Javascript解析器的lambda服务器的URL
+# poll-interval: graphql订阅的轮训时间
+graphql:
+  debug: false
+  extensions: true
+  introspection: true
+  lambda-url:
+  poll-interval: 1s
+
+# limit-各种限制配置
+# (default "mutations=allow; query-edge=1000000; normalize-node=10000; mutations-nquad=1000000; \
+# disallow-drop=false; query-timeout=0ms; txn-abort-after=5m;max-pending-queries=10000; \
+# max-retries=-1; shared-instance=false;")
+# disallow-drop:为真时禁止drop-all与drop-data操作,但还是会允许drop属性和类型
+# max-pending-queries: 最大并发查询数量，超过时报错too many requests
+# max-retries: 在重试这些次数后，将放弃对磁盘的提交，以防止将工作进程锁定在失败状态,-1表示无限重复
+# mutations-nquad: 一个变更操作中最多允许插入多少个nquad
+# mutations: 设置为allow, disallow, strict其中之一
+# normalize-node: 一个查询中最多返回多少个节点
+# query-edge：一个查询中最多返回多少边
+# query-timeout：查询超时时间，如果设为0则不超时
+# shared-instance：为真时取消为非galaxy用户取消acl限制,这通常用于为外部用户提供接入token
+# txn-abort-after: 当一个txn事物持续执行超过指定时间后，将会被下一次变更请求强制终端
+limit:
+  disallow-drop: false
+  max-pending-queries: 10000
+  max-retries: 1
+  mutations-nquad: 1000000
+  mutations: allow
+  normalize-node: 10000
+  query-edge: 1000000
+  query-timeout: 0ms
+  shared-instance: false
+  txn-abort-after: 5m

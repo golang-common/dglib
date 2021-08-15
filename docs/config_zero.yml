@@ -1,0 +1,97 @@
+# dgraph-zero配置文件
+
+# my-监听的地址与端口
+my: "localhost:5080"
+
+# peer-连接到另一个zero的邻居地址,通常用户一个zero新加入集群时的连接，成功加入后peer就不管用了
+peer:
+
+# cid-集群ID
+cid:
+
+# wal 用于存储raft预写日志的目录(default "zw")
+wal: /Users/lyonsdpy/Data/dgraph/wal_zero
+
+# enterprise-license 企业版license文件路径
+enterprise-license:
+
+# rebalance_interval 尝试谓词转移的时间间隔 (default 8m0s)
+rebalance_interval: 8m0s
+
+# replicas 复制,每个数据分片组会运行在多少个alpha复制上，包含原始分片
+replicas: 1
+
+# telemetry-遥测诊断配置(default "reports=true; sentry=true;")
+# reports: 发送匿名telemetry数据到dgraph设备
+# sentry: 发送崩溃时间到哨兵
+telemetry:
+  reports: true
+  sentry: false
+
+# survive-数据幸存方式(process 或 filesystem)
+# process: 在进程崩溃的情况下不会丢失数据，但在文件系统崩溃的情况下，行为将是不确定的
+# filesystem: 每次写入后都会调用阻塞同步，从而保证在硬重启时不会丢失数据
+survive: "process"
+
+# trace 跟踪选项(default "ratio=0.01; jaeger=; datadog=;")
+# datadog: 要发送OpenCensus跟踪的Datadog的URL。到目前为止，跟踪导出器不支持注释日志并丢弃它们
+# jaeger: 发送OpenCensus跟踪的Jaeger的URL
+# ratio: 跟踪查询的频率
+trace:
+  datadog:
+  jaeger:
+  ratio: 0.01
+
+# port-offset 增加所有已监听的端口号的值,为了方便快速设置[Grpc=5080, HTTP=6080]
+port-offset: 0
+
+# raft选项
+# (default "idx=1; learner=false;")
+# idx:提供此zero将使用的可选Raft ID
+# learner:指定该zero为学习节点，学习模式中本节点不会参与raft选举，通常用于实现只读副本
+raft:
+  idx: 1
+  learner: false
+
+# limit限制
+# (default "uid-lease=0; refill-interval=30s; disable-admin-http=false;")
+# disable-admin-http: 是否关闭zero的http管理api
+# refill-interval: 补充UID租约令牌的时间间隔
+# uid-lease: 命名空间可以租用的UID的最大数量（默认命名空间除外）,如果设置了refill-interval，将其设置为0以删除限制
+limit:
+  disable-admin-http: false
+  refill-interval: 30s
+  uid-lease: 0
+
+# audit-[企业版功能]审计配置(default "compress=false; days=10; size=100; dir=; output=; encrypt-file=;")
+# compress:是否开启旧日志压缩
+# days:日志保存天数
+# encrypt-file:生成token的加密key文件保存位置
+# output:日志输出目录或者stdout
+# 日志最大大小,MB为单位,超过后会被滚动删除
+audit:
+  compress: false
+  days: 10
+  encrypt-file: ""
+  output: /Users/lyonsdpy/Data/dgraph/audit/
+  size: 100
+
+# tls传输加密配置
+# (default "use-system-ca=true; client-auth-type=VERIFYIFGIVEN; internal-port=false;")
+# ca-cert:ca证书文件，用于验证服务器证书，需要启用TLS
+# client-auth-type:客户端验证方式，只能取VERIFYIFGIVEN
+# client-cert(可选)：客户端证书文件用于本节点作为客户端连接集群中的其它节点
+# client-key(可选): 客户端私有key文件用于本节点作为客户端连接集群中的其它节点
+# internal-port(可选)：在群集节点之间启用节点间TLS加密
+# server-cert: 在群集中启动服务器所需的服务器证书文件
+# server-key: 在群集中启动服务器所需的服务器密钥文件
+# use-system-ca: 是否将系统CA包含到CA证书中
+tls:
+  ca-cert: /Users/lyonsdpy/Data/dgraph/tls/ca.crt
+  client-auth-type: VERIFYIFGIVEN
+  client-cert: /Users/lyonsdpy/Data/dgraph/tls/client.crane.crt
+  client-key: /Users/lyonsdpy/Data/dgraph/tls/client.crane.key
+  internal-port: false
+  server-cert: /Users/lyonsdpy/Data/dgraph/tls/node.crt
+  server-key: /Users/lyonsdpy/Data/dgraph/tls/node.key
+  use-system-ca: true

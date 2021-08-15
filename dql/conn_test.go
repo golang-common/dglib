@@ -10,24 +10,28 @@ package dql
 
 import (
 	"fmt"
-	"strings"
 	"testing"
+	"time"
 )
 
-func TestH(t *testing.T) {
-	s := strings.FieldsFunc("(NOT A OR B) AND (C AND NOT (D OR E))", func(r rune) bool {
-		if r == '(' || r == ')' {
-			return true
-		}
-		return false
+func TestConn(t *testing.T) {
+	c, err := NewClient(Config{
+		Targets:     []string{"localhost:7080"},
+		DialTimeout: 3 * time.Second,
+		Tls: Tls{
+			ServeName:  "crane",
+			CaCert:     "/Users/lyonsdpy/Data/dgraph/tls/ca.crt",
+			ClientCert: "/Users/lyonsdpy/Data/dgraph/tls/client.crane.crt",
+			ClientKey:  "/Users/lyonsdpy/Data/dgraph/tls/client.crane.key",
+		},
 	})
-	t.Log(s)
-}
-
-func TestR(t *testing.T) {
-	a := "hello world"
-	i := strings.Index(a, "hello") + len("hello")
-	fmt.Println(i)
-	fmt.Println(a[0:i])
-	fmt.Println(a[i:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds, tps, err := c.Txn().GetSchemaAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(fmt.Sprintf("%+v", pds))
+	t.Log(fmt.Sprintf("%+v", tps))
 }

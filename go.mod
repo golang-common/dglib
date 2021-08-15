@@ -7,4 +7,5 @@ require (
 	github.com/dgraph-io/dgo/v200 v200.0.0-20210401091508-95bfd74de60e
 	github.com/stretchr/testify v1.6.1 // indirect
 	google.golang.org/grpc v1.27.0
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 )
