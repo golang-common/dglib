@@ -17,20 +17,25 @@ import (
 var TypeMap = map[string]Type{}
 
 type Type struct {
-	Name   string   `json:"name"`
-	Fields []string `json:"fields,omitempty"`
+	Name   string  `json:"name"`
+	Fields []Field `json:"fields,omitempty"`
 }
 
-func (t Type) Rdf() string {
+type Field struct {
+	Name string `json:"name"`
+}
+
+func (t Type) Schema() string {
 	var (
 		preds []string
 		r     string
 	)
-	for _, pred := range t.Fields {
-		if strings.HasPrefix(pred, "~") {
-			pred = fmt.Sprintf("<%s>", pred)
+	for _, p := range t.Fields {
+		var pr = p.Name
+		if strings.HasPrefix(p.Name, "~") {
+			pr = fmt.Sprintf("<~%s>", p.Name)
 		}
-		preds = append(preds, pred)
+		preds = append(preds, pr)
 	}
 	if len(preds) > 0 {
 		r = fmt.Sprintf("type %s{\n\t%s\n}", t.Name, strings.Join(preds, "\n\t"))
@@ -38,7 +43,7 @@ func (t Type) Rdf() string {
 	return r
 }
 
-func (t *Type) Unmarshal(s string) error {
+func UnmarshalType(s string) (*Type, error) {
 	var (
 		name      string
 		plist     []string
@@ -47,22 +52,22 @@ func (t *Type) Unmarshal(s string) error {
 		errFormat = errors.New("error type format")
 	)
 	if len(s) < 12 {
-		return errFormat
+		return nil, errFormat
 	}
 	s = strings.Trim(s, " \n")
 	bsIndex := strings.Index(s, "{")
 	beIndex := strings.Index(s, "}")
 	if bsIndex == -1 || beIndex == -1 || bsIndex >= beIndex {
-		return errFormat
+		return nil, errFormat
 	}
 	name = s[5:bsIndex]
 	if name == "" {
-		return errFormat
+		return nil, errFormat
 	}
 	tbody = s[bsIndex+1 : beIndex]
 	tbody = strings.Trim(tbody, " \n\t")
 	if len(tbody) == 0 {
-		return errFormat
+		return nil, errFormat
 	}
 	for _, line := range strings.Split(tbody, "\n") {
 		line = strings.Trim(line, " \t")
@@ -75,9 +80,12 @@ func (t *Type) Unmarshal(s string) error {
 		plist = append(plist, line)
 	}
 	if len(plist) == 0 {
-		return errFormat
+		return nil, errFormat
 	}
+	t := new(Type)
 	t.Name = name
-	t.Fields = append(plist, rplist...)
-	return nil
+	for _, p := range plist {
+		t.Fields = append(t.Fields, Field{Name: p})
+	}
+	return t, nil
 }

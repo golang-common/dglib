@@ -1,0 +1,6 @@
+# 健康检查
+GET https://127.0.0.1:8080/health
+###
+
+# 集群健康检查
+GET https://127.0.0.1:8080/cluster/health

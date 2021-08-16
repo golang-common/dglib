@@ -16,8 +16,11 @@ import (
 
 func TestConn(t *testing.T) {
 	c, err := NewClient(Config{
-		Targets:     []string{"localhost:7080"},
-		DialTimeout: 3 * time.Second,
+		Targets:     []string{"localhost:9080"},
+		DialTimeout: 2 * time.Second,
+		OptTimeout:  2 * time.Second,
+		Username:    "groot",
+		Password:    "password",
 		Tls: Tls{
 			ServeName:  "crane",
 			CaCert:     "/Users/lyonsdpy/Data/dgraph/tls/ca.crt",
@@ -28,10 +31,10 @@ func TestConn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pds, tps, err := c.Txn().GetSchemaAll()
+	txn := c.Txn()
+	schema, err := txn.GetSchema()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(fmt.Sprintf("%+v", pds))
-	t.Log(fmt.Sprintf("%+v", tps))
+	t.Log(fmt.Sprintf("%+v", schema))
 }

@@ -75,7 +75,13 @@ func NewClient(config Config) (*Client, error) {
 		clients = append(clients, client)
 	}
 	dgraph := dgo.NewDgraphClient(clients...)
-	return &Client{client: dgraph}, nil
+	if config.Username != "" && config.Password != "" {
+		err := dgraph.Login(ctx, config.Username, config.Password)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &Client{client: dgraph, optTimeout: config.OptTimeout}, nil
 }
 
 func newTlsCred(ts Tls) (credentials.TransportCredentials, error) {
@@ -101,49 +107,43 @@ func newTlsCred(ts Tls) (credentials.TransportCredentials, error) {
 
 type Schema struct {
 	Preds []Pred `json:"schema"`
-	Types []struct {
-		Name   string `json:"name"`
-		Fields []struct {
-			Name string `json:"name"`
-		} `json:"fields"`
-	} `json:"types"`
+	Types []Type `json:"types"`
 }
 
-func (s Schema) ListType() []Type {
-	var r []Type
-	for _, v := range s.Types {
-		if strings.HasPrefix(v.Name, "dgraph.") {
-			continue
-		}
-		var tp = Type{Name: v.Name}
-		for _, field := range v.Fields {
-			tp.Fields = append(tp.Fields, field.Name)
-		}
-		r = append(r, tp)
-	}
-	return r
-}
-
-func (s Schema) ListPred() []Pred {
-	var r []Pred
+// SkipSysSchema 忽略dgraph系统自身schema
+func (s *Schema) SkipSysSchema() Schema {
+	var (
+		r     Schema
+		preds []Pred
+		types []Type
+	)
 	for _, p := range s.Preds {
 		if strings.HasPrefix(p.Predicate, "dgraph.") {
 			continue
 		}
-		r = append(r, p)
+		preds = append(preds, p)
 	}
+	for _, v := range s.Types {
+		if strings.HasPrefix(v.Name, "dgraph.") {
+			continue
+		}
+		types = append(types, v)
+	}
+	r.Preds = preds
+	r.Types = types
 	return r
 }
 
 type Client struct {
-	client *dgo.Dgraph
+	client     *dgo.Dgraph
+	optTimeout time.Duration
 }
 
 func (d *Client) Txn(ReadOnly ...bool) *Txn {
 	if len(ReadOnly) > 0 && ReadOnly[0] == true {
-		return &Txn{Txn: d.client.NewReadOnlyTxn(), Ctx: context.Background(), Readonly: ReadOnly[0]}
+		return &Txn{Txn: d.client.NewReadOnlyTxn(), Readonly: ReadOnly[0], Timeout: d.optTimeout}
 	}
-	return &Txn{Txn: d.client.NewTxn(), Ctx: context.Background()}
+	return &Txn{Txn: d.client.NewTxn(), Timeout: d.optTimeout}
 }
 
 func (d *Client) SetPred(pred Pred) error {
@@ -163,7 +163,7 @@ func (d *Client) DropPred(name string) error {
 
 func (d *Client) SetType(tp Type) error {
 	err := d.client.Alter(context.Background(), &api.Operation{
-		Schema: tp.Rdf(),
+		Schema: tp.Schema(),
 	})
 	return err
 }
@@ -179,58 +179,103 @@ func (d *Client) DropType(name string) error {
 
 type Txn struct {
 	Txn      *dgo.Txn
-	Ctx      context.Context
+	Timeout  time.Duration
 	Readonly bool
-	Closed   bool
+	cancel   context.CancelFunc
 }
 
-func (d *Txn) GetSchemaAll() ([]Pred, []Type, error) {
+func (d *Txn) Ctx() context.Context {
+	var (
+		r = context.Background()
+		c context.CancelFunc
+	)
+	// 清除之前的ctx资源
+	if d.cancel != nil {
+		d.cancel()
+	}
+	if d.Timeout > 0 {
+		r, c = context.WithTimeout(r, d.Timeout)
+	}
+	d.cancel = c
+	return r
+}
+
+func (d *Txn) Cancel() {
+	if d.cancel != nil {
+		d.cancel()
+	}
+}
+
+func (d *Txn) CommitOrAbort(err error) error {
+	defer d.Cancel()
+	if err != nil {
+		return d.Txn.Discard(d.Ctx())
+	}
+	return d.Txn.Commit(d.Ctx())
+}
+
+// GetSchema 获取dgraph所有谓词和类型
+func (d *Txn) GetSchema() (*Schema, error) {
 	const q = `schema{}`
-	var r Schema
-	resp, err := d.Txn.Query(context.Background(), q)
+	var res Schema
+	defer d.Cancel()
+	resp, err := d.Txn.Query(d.Ctx(), q)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	err = json.Unmarshal(resp.Json, &r)
+	err = json.Unmarshal(resp.Json, &res)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return r.ListPred(), r.ListType(), err
+	r := res.SkipSysSchema()
+	return &r, err
 }
 
-func (d *Txn) GetPred(pred string) (*Pred, error) {
+// FindPred 查找特定谓词结构,如果不存在则报错
+func (d *Txn) FindPred(pred string) (*Pred, error) {
 	const q = `schema(pred: %s){}`
-	var r Schema
-
-	resp, err := d.Txn.Query(d.Ctx, fmt.Sprintf(q, pred))
+	var res Schema
+	defer d.Cancel()
+	resp, err := d.Txn.Query(d.Ctx(), fmt.Sprintf(q, pred))
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(resp.Json, &r)
+	err = json.Unmarshal(resp.Json, &res)
 	if err != nil {
 		return nil, err
 	}
-	if len(r.Preds) == 0 {
-		return nil, errors.New("nothing found")
+	if len(res.Preds) == 0 {
+		return nil, errors.New("not found")
 	}
-	p := r.Preds[0]
+	p := res.Preds[0]
 	return &p, nil
 }
 
-func (d *Txn) GetType(tp string) (*Type, error) {
+// FindType 查找特定类型,如果不存在则报错
+func (d *Txn) FindType(tp string) (*Type, error) {
 	const q = `schema(type: %s){}`
-	var r Schema
-	resp, err := d.Txn.Query(d.Ctx, fmt.Sprintf(q, tp))
+	var res Schema
+	defer d.Cancel()
+	resp, err := d.Txn.Query(d.Ctx(), fmt.Sprintf(q, tp))
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(resp.Json, &r)
+	err = json.Unmarshal(resp.Json, &res)
 	if err != nil {
 		return nil, err
 	}
-	if len(r.Types) == 0 {
-		return nil, errors.New("nothing found")
+	if len(res.Types) == 0 {
+		return nil, errors.New("not found")
 	}
-	p := r.ListType()[0]
+	p := res.Types[0]
 	return &p, nil
 }
+//
+//// FindTypePreds 输入特定类型,查找其下所有关联谓词(第二个参数指示是否忽略反向谓词)
+//func (d *Txn) FindTypePreds(tp Type, ignoreReverse ...bool) ([]Pred, error) {
+//	var ignore bool
+//	if len(ignoreReverse) > 0 && ignoreReverse[0] == true {
+//		ignore = true
+//	}
+//
+//}

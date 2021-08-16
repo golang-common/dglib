@@ -9,10 +9,43 @@
 package dql
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 )
+
+// UnmashalQueryObj 将q解析为查询并执行，并将返回的JSON结果绑定到obj
+func (d *Txn) UnmashalQueryObj(q Query, obj interface{}) error {
+	qString, err := q.Parse()
+	if err != nil {
+		return err
+	}
+	defer d.Cancel()
+	resp, err := d.Txn.Query(d.Ctx(), qString)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(resp.Json, obj)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// UnmashalQueryStr 执行q查询，并将返回的JSON结果绑定到obj
+func (d *Txn) UnmashalQueryStr(q string, obj interface{}) error {
+	defer d.Cancel()
+	resp, err := d.Txn.Query(d.Ctx(), q)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(resp.Json, obj)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 // Query 查询结构体，用于发送查询请求
 // Q 查询主结构
