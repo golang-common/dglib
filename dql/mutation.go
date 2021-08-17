@@ -15,6 +15,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"github.com/twpayne/go-geom"
 	"github.com/twpayne/go-geom/encoding/geojson"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -28,10 +29,11 @@ const (
 	tagId   = "id"
 	tagMust = "must"
 
-	actionAdd    = "add"
-	actionMerge  = "merge"
-	actionUpdate = "update"
-	actionDelete = "delete"
+	actionAdd     = "add"
+	actionMerge   = "merge"
+	actionUpdate  = "update"
+	actionDelete  = "delete"
+	actionDelNode = "delnode"
 )
 
 // AddNode 给入一个结构体，其UID字段可以为空,系统会自动生成UID
@@ -196,8 +198,89 @@ func (d *Txn) DelVal(obj interface{}) (*api.Response, error) {
 	return resp, nil
 }
 
-func (d *Txn) DelNode(uid string) (*api.Response, error) {
-	return nil, nil
+// DelNode 删除该节点的所有出方向边，同时删除所有指向该节点的边
+func (d *Txn) DelNode(obj interface{}) (*api.Response, error) {
+	var (
+		q           string
+		muList      []*api.Mutation
+		revPredList []string
+		uid         string
+		nquadList   []*api.NQuad
+	)
+	structVal, err := d.getStructObj(obj)
+	if err != nil {
+		return nil, err
+	}
+	uid = d.getUidFromStructVal(structVal)
+	if uid == "" {
+		return nil, errors.New(fmt.Sprintf("get uid failed,operation [%s] cannot operate without uid", actionDelNode))
+	}
+	nquadList = append(nquadList,
+		&api.NQuad{Subject: uid, Predicate: StarAll, ObjectValue: &api.Value{Val: &api.Value_DefaultVal{DefaultVal: StarAll}}})
+	muList = append(muList, &api.Mutation{Set: nquadList})
+	for i := 0; i < structVal.NumField(); i++ {
+		field := structVal.Type().Field(i)
+		tagList := strings.Split(field.Tag.Get(StructTag), ",")
+		if len(tagList) == 0 {
+			continue
+		}
+		pred := tagList[0]
+		// 面无法删除
+		if strings.Contains(pred, "|") {
+			continue
+		}
+		if pred == "uid" {
+			continue
+		}
+		// 记录反向边
+		if strings.HasPrefix(pred, "~") {
+			revPredList = append(revPredList, pred)
+		}
+	}
+	if len(revPredList) > 0 {
+		var revList []string
+		var rmap = make(map[string]struct{})
+		q = `query{
+	var(func: uid($uid)){
+		$revpred
+	}
+}`
+		for _, revv := range revPredList {
+			var rvar string
+			for {
+				rvar = GetRandomString(3)
+				if _, ok := rmap[rvar]; !ok {
+					break
+				}
+			}
+			rmap[rvar] = struct{}{}
+			revList = append(revList, fmt.Sprintf("%s as %s", rvar, revv))
+			mu := &api.Mutation{
+				Cond: fmt.Sprintf(`@if(gt(uid(%s),0))`, rvar),
+				Set: []*api.NQuad{{
+					Subject:     uid,
+					Predicate:   strings.Trim(revv, "~"),
+					ObjectValue: &api.Value{Val: &api.Value_DefaultVal{DefaultVal: StarAll}},
+				}},
+			}
+			muList = append(muList, mu)
+		}
+		rplc := strings.NewReplacer(
+			"$uid", uid,
+			"$revpred", strings.Join(revList, "\n\t\t"),
+		)
+		q = rplc.Replace(q)
+	}
+	req := &api.Request{
+		Query:     q,
+		Mutations: muList,
+	}
+	defer d.Cancel()
+	resp, err := d.Txn.Do(d.Ctx(), req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // nquad 将结构体转换为dgraph操作对象
@@ -298,6 +381,7 @@ func (d *Txn) nquad(obj interface{}, action string, omitempty ...bool) ([]*api.N
 		if fv.IsZero() && len(omitempty) > 0 && omitempty[0] == true {
 			continue
 		}
+		// 如果设置了id唯一键，则返回类型和id的值，在外部的方法中需要
 		if idSet {
 			switch fv.Interface().(type) {
 			case string, int, int64:
@@ -526,4 +610,15 @@ func (d *Txn) parseObjFacet(key string, obj interface{}) (*api.Facet, error) {
 		return nil, errors.New(fmt.Sprintf("unsupport facet datatype [%s]", reflect.TypeOf(obj)))
 	}
 	return r, nil
+}
+
+func GetRandomString(l int) string {
+	str := "abcdefghijklmnopqrstuvwxyz"
+	bs := []byte(str)
+	var rst []byte
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < l; i++ {
+		rst = append(rst, bs[r.Intn(len(bs))])
+	}
+	return string(rst)
 }
