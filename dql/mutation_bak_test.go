@@ -47,3 +47,4 @@ func TestField(t *testing.T) {
 	t.Log(reflect.TypeOf(a))
 	t.Log(reflect.ValueOf(a).Kind())
 }
+

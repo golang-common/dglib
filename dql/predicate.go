@@ -25,6 +25,7 @@ type Pred struct {
 	Count     bool     `json:"count"`
 	List      bool     `json:"list"`
 	Upsert    bool     `json:"upsert"`
+	Lang      bool     `json:"lang"`
 }
 
 func (p Pred) String() string {
@@ -52,6 +53,9 @@ func (p Pred) Rdf() string {
 	}
 	if p.Upsert {
 		indices = append(indices, "@upsert")
+	}
+	if p.Lang {
+		indices = append(indices, "@lang")
 	}
 
 	replacer := strings.NewReplacer(

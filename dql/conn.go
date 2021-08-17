@@ -137,6 +137,30 @@ func (s *Schema) SkipSysSchema() Schema {
 type Client struct {
 	client     *dgo.Dgraph
 	optTimeout time.Duration
+	cancel     context.CancelFunc
+}
+
+func (d *Client) Cancel() {
+	if d.cancel != nil {
+		d.cancel()
+	}
+	return
+}
+
+func (d *Client) Ctx() context.Context {
+	var (
+		r = context.Background()
+		c context.CancelFunc
+	)
+	// 清除之前的ctx资源
+	if d.cancel != nil {
+		d.cancel()
+	}
+	if d.optTimeout > 0 {
+		r, c = context.WithTimeout(r, d.optTimeout)
+	}
+	d.cancel = c
+	return r
 }
 
 func (d *Client) Txn(ReadOnly ...bool) *Txn {
@@ -147,14 +171,16 @@ func (d *Client) Txn(ReadOnly ...bool) *Txn {
 }
 
 func (d *Client) SetPred(pred Pred) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
+	defer d.Cancel()
+	err := d.client.Alter(d.Ctx(), &api.Operation{
 		Schema: pred.Rdf(),
 	})
 	return err
 }
 
 func (d *Client) DropPred(name string) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
+	defer d.Cancel()
+	err := d.client.Alter(d.Ctx(), &api.Operation{
 		DropValue: name,
 		DropOp:    api.Operation_ATTR,
 	})
@@ -162,17 +188,35 @@ func (d *Client) DropPred(name string) error {
 }
 
 func (d *Client) SetType(tp Type) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
+	defer d.Cancel()
+	err := d.client.Alter(d.Ctx(), &api.Operation{
 		Schema: tp.Schema(),
 	})
 	return err
 }
 
 func (d *Client) DropType(name string) error {
-	err := d.client.Alter(context.Background(), &api.Operation{
+	defer d.Cancel()
+	err := d.client.Alter(d.Ctx(), &api.Operation{
 		DropValue:       name,
 		DropOp:          api.Operation_TYPE,
 		RunInBackground: false,
+	})
+	return err
+}
+
+func (d *Client) DropAllData() error {
+	defer d.Cancel()
+	err := d.client.Alter(d.Ctx(), &api.Operation{
+		DropOp: api.Operation_DATA,
+	})
+	return err
+}
+
+func (d *Client) DropAllDataAndSchema() error {
+	defer d.Cancel()
+	err := d.client.Alter(d.Ctx(), &api.Operation{
+		DropAll: true,
 	})
 	return err
 }
@@ -270,12 +314,14 @@ func (d *Txn) FindType(tp string) (*Type, error) {
 	p := res.Types[0]
 	return &p, nil
 }
-//
-//// FindTypePreds 输入特定类型,查找其下所有关联谓词(第二个参数指示是否忽略反向谓词)
-//func (d *Txn) FindTypePreds(tp Type, ignoreReverse ...bool) ([]Pred, error) {
-//	var ignore bool
-//	if len(ignoreReverse) > 0 && ignoreReverse[0] == true {
-//		ignore = true
-//	}
-//
-//}
+
+func InitSchemMap(schema Schema) {
+	TypeMap = make(map[string]Type)
+	PredMap = make(map[string]Pred)
+	for _, v := range schema.Preds {
+		PredMap[v.Predicate] = v
+	}
+	for _, v := range schema.Types {
+		TypeMap[v.Name] = v
+	}
+}

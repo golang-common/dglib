@@ -148,7 +148,7 @@ func (f FFunc) checkFilterKey() error {
 	if !ok {
 		return errors.New(fmt.Sprintf("key of predicate [%s] does not exist", f.Key))
 	}
-	// 查询谓词的类型属性
+	//查询谓词的类型属性
 	tattr, ok := TypeAttrMap[pred.Type]
 	if !ok {
 		return errors.New(fmt.Sprintf("unsupport pred datatype [%s]", pred.Type))

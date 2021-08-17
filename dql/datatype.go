@@ -12,20 +12,29 @@ const (
 	TypePassword string = "password"
 )
 const (
-	IndexDefault  string = "default"
-	IndexInt      string = "int"
-	IndexFloat    string = "float"
-	IndexBool     string = "bool"
-	IndexGeo      string = "geo"
-	IndexYear     string = "year"
-	IndexMonth    string = "month"
-	IndexDay      string = "day"
-	IndexHour     string = "hour"
-	IndexHash     string = "hash"
-	IndexExact    string = "exact"
-	IndexTerm     string = "term"
-	IndexFulltext string = "fulltext"
-	IndexTrigram  string = "trigram"
+	TokenDefault  string = "default"
+	TokenInt      string = "int"
+	TokenFloat    string = "float"
+	TokenBool     string = "bool"
+	TokenGeo      string = "geo"
+	TokenYear     string = "year"
+	TokenMonth    string = "month"
+	TokenDay      string = "day"
+	TokenHour     string = "hour"
+	TokenHash     string = "hash"
+	TokenExact    string = "exact"
+	TokenTerm     string = "term"
+	TokenFulltext string = "fulltext"
+	TokenTrigram  string = "trigram"
+)
+
+const (
+	IndexCount   string = "count"
+	IndexList    string = "list"
+	IndexLang    string = "lang"
+	IndexReverse string = "reverse"
+	IndexIndex   string = "index"
+	IndexUpsert  string = "upsert"
 )
 
 const (
@@ -52,21 +61,50 @@ const (
 )
 
 var (
+	TokenList = []string{
+		TokenDefault,
+		TokenInt,
+		TokenFloat,
+		TokenBool,
+		TokenGeo,
+		TokenYear,
+		TokenMonth,
+		TokenDay,
+		TokenHour,
+		TokenHash,
+		TokenExact,
+		TokenTerm,
+		TokenFulltext,
+		TokenTrigram,
+	}
+
+	IndicesList = []string{
+		IndexCount,
+		IndexList,
+		IndexLang,
+		IndexReverse,
+		IndexIndex,
+		IndexUpsert,
+	}
+
 	TypeAttrMap = map[string]typeAttr{
-		TypeDefault:  {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexDefault: {}}},
-		TypeUid:      {Fs: []string{FuncHas, FuncUidIn, FuncUid}},
-		TypeInt:      {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexInt: {true, []string{FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}}}},
-		TypeFloat:    {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexFloat: {true, []string{FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}}}},
-		TypeString:   {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexHash: {false, []string{FuncEq}}, IndexExact: {true, []string{FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}}, IndexTerm: {false, []string{FuncEq, FuncTermAny, FuncTermAll}}, IndexFulltext: {false, []string{FuncEq, FuncTextAny, FuncTextAll}}, IndexTrigram: {false, []string{FuncRegexp, FuncMatch}}}},
-		TypeBool:     {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexBool: {false, []string{FuncEq}}}},
-		TypeDateTime: {Fs: []string{FuncHas, FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}, Ts: map[string]tokenAttr{IndexYear: {Stb: true}, IndexMonth: {Stb: true}, IndexDay: {Stb: true}, IndexHour: {Stb: true}}},
-		TypeGeo:      {Fs: []string{FuncHas}, Ts: map[string]tokenAttr{IndexGeo: {false, []string{FuncNear, FuncIntersects, FuncWithin, FuncContain}}}},
+		TypeDefault:  {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenDefault: {}}},
+		TypeUid:      {Fs: []string{FuncHas, FuncUidIn, FuncUid}, Is: []string{IndexList, IndexCount, IndexReverse}},
+		TypeInt:      {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenInt: {true, []string{FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}}}},
+		TypeFloat:    {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenFloat: {true, []string{FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}}}},
+		TypeString:   {Fs: []string{FuncHas}, Is: []string{IndexLang, IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenHash: {false, []string{FuncEq}}, TokenExact: {true, []string{FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}}, TokenTerm: {false, []string{FuncEq, FuncTermAny, FuncTermAll}}, TokenFulltext: {false, []string{FuncEq, FuncTextAny, FuncTextAll}}, TokenTrigram: {false, []string{FuncRegexp, FuncMatch}}}},
+		TypeBool:     {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenBool: {false, []string{FuncEq}}}},
+		TypeDateTime: {Fs: []string{FuncHas, FuncEq, FuncGe, FuncGt, FuncLt, FuncLe, FuncBetween}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenYear: {Stb: true}, TokenMonth: {Stb: true}, TokenDay: {Stb: true}, TokenHour: {Stb: true}}},
+		TypeGeo:      {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenGeo: {false, []string{FuncNear, FuncIntersects, FuncWithin, FuncContain}}}},
 		TypePassword: {Fs: []string{FuncHas}},
 	}
+
+
 )
 
 type typeAttr struct {
 	Fs []string             // func surpport
+	Is []string             // index surpport
 	Ts map[string]tokenAttr // token surpport
 }
 
