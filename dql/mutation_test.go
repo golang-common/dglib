@@ -10,7 +10,9 @@ package dql
 
 import (
 	"fmt"
+	"github.com/dgraph-io/dgo/v200/protos/api"
 	"testing"
+	"time"
 )
 
 type Person struct {
@@ -116,4 +118,31 @@ func TestTxn_DelNode(t *testing.T) {
 
 func TestTemp(t *testing.T) {
 	fmt.Printf("%x", 2333)
+}
+
+func TestPar(t *testing.T) {
+	c, err := NewClient(DgConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := c.Txn()
+	b, _ := time.Now().MarshalBinary()
+	resp, err := txn.Txn.Mutate(c.Ctx(), &api.Mutation{
+		Set: []*api.NQuad{
+			{
+				Subject:     "_:a",
+				Predicate:   "name",
+				ObjectValue: &api.Value{Val: &api.Value_StrVal{StrVal: "呆"}},
+				Lang:        "cn",
+				Facets: []*api.Facet{
+					{Key: "kick", Value: b, ValType: api.Facet_DATETIME, Alias: "ff"},
+				},
+			},
+		},
+	})
+	txn.CommitOrAbort(err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(IndentJson(resp))
 }

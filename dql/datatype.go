@@ -78,14 +78,14 @@ var (
 		TokenTrigram,
 	}
 
-	IndicesList = []string{
-		IndexCount,
-		IndexList,
-		IndexLang,
-		IndexReverse,
-		IndexIndex,
-		IndexUpsert,
-	}
+	//IndicesList = []string{
+	//	IndexCount,
+	//	IndexList,
+	//	IndexLang,
+	//	IndexReverse,
+	//	IndexIndex,
+	//	IndexUpsert,
+	//}
 
 	TypeAttrMap = map[string]typeAttr{
 		TypeDefault:  {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenDefault: {}}},
@@ -98,8 +98,6 @@ var (
 		TypeGeo:      {Fs: []string{FuncHas}, Is: []string{IndexList, IndexCount, IndexIndex, IndexUpsert}, Ts: map[string]tokenAttr{TokenGeo: {false, []string{FuncNear, FuncIntersects, FuncWithin, FuncContain}}}},
 		TypePassword: {Fs: []string{FuncHas}},
 	}
-
-
 )
 
 type typeAttr struct {
