@@ -250,12 +250,14 @@ func (d *Txn) Cancel() {
 	}
 }
 
-func (d *Txn) CommitOrAbort(err error) error {
+func (d *Txn) CommitOrAbort(err error) {
 	defer d.Cancel()
 	if err != nil {
-		return d.Txn.Discard(d.Ctx())
+		d.Txn.Discard(d.Ctx())
+		return
 	}
-	return d.Txn.Commit(d.Ctx())
+	d.Txn.Commit(d.Ctx())
+	return
 }
 
 // GetSchema 获取dgraph所有谓词和类型

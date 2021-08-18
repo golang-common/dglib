@@ -9,7 +9,6 @@
 package dql
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -114,24 +113,24 @@ func Test2(t *testing.T) {
 //	Friend   []Person `json:"friend" db:"friend,uid" index:"reverse,count,list"`
 //	FriendOf []Person `json:"friend_of" db:"~friend,uid"`
 //}
-
-func TestSetVal1(t *testing.T) {
-	var a = Person{
-		Name: "DP2",
-		Age:  22,
-	}
-	c, err := NewClient(DgConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	txn := c.Txn()
-	resp, err := txn.AddNode(a)
-	defer txn.CommitOrAbort(err)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(IndentJson(resp))
-}
+//
+//func TestSetVal1(t *testing.T) {
+//	var a = Person{
+//		Name: "DP2",
+//		Age:  22,
+//	}
+//	c, err := NewClient(DgConfig)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	txn := c.Txn()
+//	resp, err := txn.AddNode(a)
+//	defer txn.CommitOrAbort(err)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	t.Log(IndentJson(resp))
+//}
 
 func TestSetType2(t *testing.T) {
 	c, err := NewClient(DgConfig)
@@ -152,12 +151,4 @@ func TestSetType2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-func IndentJson(obj interface{}) string {
-	ret, err := json.MarshalIndent(obj, "", "\t")
-	if err != nil {
-		return err.Error()
-	}
-	return string(ret)
 }

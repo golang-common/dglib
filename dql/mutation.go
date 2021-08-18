@@ -9,6 +9,7 @@
 package dql
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/dgraph-io/dgo/v200/protos/api"
@@ -16,97 +17,183 @@ import (
 	"github.com/twpayne/go-geom"
 	"github.com/twpayne/go-geom/encoding/geojson"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	Uid     = "Uid"
-	StarAll = "_STAR_ALL"
+	Uid      = "Uid"
+	StarAll  = "_STAR_ALL"
+	TagDb    = "db" // 解析结构时使用的tag
+	TagIndex = "index"
+	TagDtype = "dtype"
+	tagId    = "id"
+	tagMust  = "must"
 )
 
 var (
 	starNqVal = &api.Value{Val: &api.Value_DefaultVal{DefaultVal: StarAll}}
 
-	typeNqTypeMap = map[string]func(value reflect.Value) (*api.Value, error){
-		TypeDefault: func(value reflect.Value) (*api.Value, error) {
+	typeNqTypeMap = map[string]func(value reflect.Value) (*api.Value, string, error){
+		TypeDefault: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(string); ok {
-				return &api.Value{Val: &api.Value_DefaultVal{DefaultVal: v}}, nil
+				return &api.Value{Val: &api.Value_DefaultVal{DefaultVal: v}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeUid: func(value reflect.Value) (*api.Value, error) {
+		TypeUid: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(string); ok {
-				vi, err := strconv.ParseUint(v, 16, 64)
-				if err != nil {
-					return nil, err
-				}
-				return &api.Value{Val: &api.Value_UidVal{UidVal: vi}}, nil
+				return nil, v, nil
 			}
 			if v, ok := value.Interface().(uint64); ok {
-				return &api.Value{Val: &api.Value_UidVal{UidVal: v}}, nil
+				return nil, fmt.Sprintf("0x%x", v), nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeInt: func(value reflect.Value) (*api.Value, error) {
+		TypeInt: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(int); ok {
-				return &api.Value{Val: &api.Value_IntVal{IntVal: int64(v)}}, nil
+				return &api.Value{Val: &api.Value_IntVal{IntVal: int64(v)}}, "", nil
 			}
 			if v, ok := value.Interface().(int64); ok {
-				return &api.Value{Val: &api.Value_IntVal{IntVal: v}}, nil
+				return &api.Value{Val: &api.Value_IntVal{IntVal: v}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeFloat: func(value reflect.Value) (*api.Value, error) {
+		TypeFloat: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(float64); ok {
-				return &api.Value{Val: &api.Value_DoubleVal{DoubleVal: v}}, nil
+				return &api.Value{Val: &api.Value_DoubleVal{DoubleVal: v}}, "", nil
 			}
 			if v, ok := value.Interface().(float32); ok {
-				return &api.Value{Val: &api.Value_DoubleVal{DoubleVal: float64(v)}}, nil
+				return &api.Value{Val: &api.Value_DoubleVal{DoubleVal: float64(v)}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeString: func(value reflect.Value) (*api.Value, error) {
+		TypeString: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(string); ok {
-				return &api.Value{Val: &api.Value_StrVal{StrVal: v}}, nil
+				return &api.Value{Val: &api.Value_StrVal{StrVal: v}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeBool: func(value reflect.Value) (*api.Value, error) {
+		TypeBool: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(bool); ok {
-				return &api.Value{Val: &api.Value_BoolVal{BoolVal: v}}, nil
+				return &api.Value{Val: &api.Value_BoolVal{BoolVal: v}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeDateTime: func(value reflect.Value) (*api.Value, error) {
+		TypeDateTime: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(time.Time); ok {
 				bs, err := v.MarshalBinary()
 				if err != nil {
-					return nil, err
+					return nil, "", err
 				}
-				return &api.Value{Val: &api.Value_DatetimeVal{DatetimeVal: bs}}, nil
+				return &api.Value{Val: &api.Value_DatetimeVal{DatetimeVal: bs}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypeGeo: func(value reflect.Value) (*api.Value, error) {
+		TypeGeo: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(geom.T); ok {
 				bs, err := geojson.Marshal(v)
 				if err != nil {
-					return nil, err
+					return nil, "", err
 				}
-				return &api.Value{Val: &api.Value_GeoVal{GeoVal: bs}}, nil
+				return &api.Value{Val: &api.Value_GeoVal{GeoVal: bs}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
-		TypePassword: func(value reflect.Value) (*api.Value, error) {
+		TypePassword: func(value reflect.Value) (*api.Value, string, error) {
 			if v, ok := value.Interface().(string); ok {
-				return &api.Value{Val: &api.Value_PasswordVal{PasswordVal: v}}, nil
+				return &api.Value{Val: &api.Value_PasswordVal{PasswordVal: v}}, "", nil
 			}
-			return nil, errors.New("errors datatype " + value.Type().String())
+			return nil, "", errors.New("errors datatype " + value.Type().String())
 		},
 	}
 )
+
+func (d *Txn) Add(obj interface{}, facets ...*Facet) (*api.Response, error) {
+	muta, err := newMutation(obj, facets...)
+	if err != nil {
+		return nil, err
+	}
+	req, err := muta.MakeAdd()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(IndentJson(req))
+	defer d.Cancel()
+	resp, err := d.Txn.Do(d.Ctx(), req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (d *Txn) Update(obj interface{}, facets ...*Facet) (*api.Response, error) {
+	muta, err := newMutation(obj, facets...)
+	if err != nil {
+		return nil, err
+	}
+	req, err := muta.MakeUpd()
+	if err != nil {
+		return nil, err
+	}
+	defer d.Cancel()
+	resp, err := d.Txn.Do(d.Ctx(), req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (d *Txn) Merge(obj interface{}, facets ...*Facet) (*api.Response, error) {
+	muta, err := newMutation(obj, facets...)
+	if err != nil {
+		return nil, err
+	}
+	req, err := muta.MakeMerge()
+	if err != nil {
+		return nil, err
+	}
+	defer d.Cancel()
+	resp, err := d.Txn.Do(d.Ctx(), req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (d *Txn) Delete(obj interface{}, facets ...*Facet) (*api.Response, error) {
+	muta, err := newMutation(obj, facets...)
+	if err != nil {
+		return nil, err
+	}
+	req, err := muta.MakeDelVal()
+	if err != nil {
+		return nil, err
+	}
+	defer d.Cancel()
+	resp, err := d.Txn.Do(d.Ctx(), req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (d *Txn) DelNode(obj interface{}, facets ...*Facet) (*api.Response, error) {
+	muta, err := newMutation(obj, facets...)
+	if err != nil {
+		return nil, err
+	}
+	req, err := muta.MakeDelNode()
+	if err != nil {
+		return nil, err
+	}
+	defer d.Cancel()
+	resp, err := d.Txn.Do(d.Ctx(), req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
 
 func newMutation(obj interface{}, facets ...*Facet) (*mutation, error) {
 	val := reflect.ValueOf(obj)
@@ -148,7 +235,7 @@ type mutation struct {
 	curMustSet bool
 	idSet      bool
 	idName     string
-	idVal      interface{}
+	idVal      string
 }
 
 func (m *mutation) MakeAdd() (*api.Request, error) {
@@ -159,6 +246,11 @@ func (m *mutation) MakeAdd() (*api.Request, error) {
 		setNquads []*api.NQuad
 	)
 	m.Subject = fmt.Sprintf("_:%s", uuid.NewV1().String())
+	setNquads = append(setNquads, &api.NQuad{
+		Subject:     m.Subject,
+		Predicate:   "dgraph.type",
+		ObjectValue: &api.Value{Val: &api.Value_StrVal{StrVal: m.Dtype}},
+	})
 	for i := 0; i < m.Val.NumField(); i++ {
 		f := m.Val.Type().Field(i)
 		fv := m.Val.Field(i)
@@ -183,7 +275,16 @@ func (m *mutation) MakeAdd() (*api.Request, error) {
 			continue
 		}
 		if m.idSet && m.idName == m.curName {
-			m.idVal = m.Val.Interface()
+			switch fv.Interface().(type) {
+			case string:
+				m.idVal = fv.Interface().(string)
+			case int:
+				m.idVal = fmt.Sprintf("%d", fv.Interface().(int))
+			case float64:
+				m.idVal = fmt.Sprintf("%f", fv.Interface().(float64))
+			default:
+				return nil, errors.New("unsupport id datatype")
+			}
 		}
 		nql, err := m.setCurVal(fv)
 		if err != nil {
@@ -212,20 +313,20 @@ func (m *mutation) MakeAdd() (*api.Request, error) {
 			"$value", fmt.Sprintf("%v", m.idVal),
 		)
 		q = rplc.Replace(model)
-		cond = `@if(eq(uid(a),0))`
+		cond = `@if(eq(len(a),0))`
 	}
 	var req = &api.Request{
-		Query:      q,
-		Mutations:  []*api.Mutation{{Cond: cond, Set: setNquads}},
-		CommitNow:  false,
-		RespFormat: 0,
-		Hash:       "",
+		Query:     q,
+		Mutations: []*api.Mutation{{Cond: cond, Set: setNquads}},
 	}
 	return req, nil
 }
 
 func (m *mutation) MakeUpd() (*api.Request, error) {
 	var (
+		model    = `query{ a as var(func: type($type)) @filter(eq($name,$value) AND NOT(uid($uid)))}`
+		q        string
+		cond     string
 		setNquad []*api.NQuad
 		delNquad []*api.NQuad
 	)
@@ -238,6 +339,9 @@ func (m *mutation) MakeUpd() (*api.Request, error) {
 		// 忽略uid节点
 		if f.Name == Uid {
 			continue
+		}
+		if f.Name == "Friend" {
+			fmt.Println(true)
 		}
 		err := m.parseTag(f.Tag)
 		if err != nil {
@@ -255,7 +359,16 @@ func (m *mutation) MakeUpd() (*api.Request, error) {
 			}
 		}
 		if m.idSet && m.idName == m.curName {
-			m.idVal = m.Val.Interface()
+			switch fv.Interface().(type) {
+			case string:
+				m.idVal = fv.Interface().(string)
+			case int:
+				m.idVal = fmt.Sprintf("%d", fv.Interface().(int))
+			case float64:
+				m.idVal = fmt.Sprintf("%f", fv.Interface().(float64))
+			default:
+				return nil, errors.New("unsupport id datatype")
+			}
 		}
 		delNql, err := m.delCurPred()
 		if err != nil {
@@ -273,22 +386,35 @@ func (m *mutation) MakeUpd() (*api.Request, error) {
 				}
 			}
 		}
-		if len(setNql) > 0 {
-			delNquad = append(delNquad, delNql)
-		}
+		delNquad = append(delNquad, delNql)
 		setNquad = append(setNquad, setNql...)
 	}
-	if m.idSet && m.idName == "" || reflect.ValueOf(m.idVal).IsZero() {
-		return nil, errors.New("id is set but id value or id name is empty")
+	if m.idSet {
+		if m.idName == "" || reflect.ValueOf(m.idVal).IsZero() {
+			return nil, errors.New("id is set but id value or id name is empty")
+		}
+		rplc := strings.NewReplacer(
+			"$type", m.Dtype,
+			"$name", m.idName,
+			"$value", fmt.Sprintf("%v", m.idVal),
+			"$uid", m.Subject,
+		)
+		q = rplc.Replace(model)
+		cond = `@if(eq(len(a),0))`
 	}
 	var req = &api.Request{
-		Mutations: []*api.Mutation{{Set: setNquad, Del: delNquad}},
+		Query:     q,
+		Mutations: []*api.Mutation{{Cond: cond, Set: setNquad, Del: delNquad}},
 	}
+	fmt.Println(IndentJson(req))
 	return req, nil
 }
 
 func (m *mutation) MakeMerge() (*api.Request, error) {
 	var (
+		model    = `query{ a as var(func: type($type)) @filter(eq($name,$value) AND NOT(uid($uid)))}`
+		q        string
+		cond     string
 		setNquad []*api.NQuad
 	)
 	if m.Subject == "" {
@@ -301,6 +427,9 @@ func (m *mutation) MakeMerge() (*api.Request, error) {
 		if f.Name == Uid {
 			continue
 		}
+		if fv.IsZero() {
+			continue
+		}
 		err := m.parseTag(f.Tag)
 		if err != nil {
 			return nil, err
@@ -308,17 +437,17 @@ func (m *mutation) MakeMerge() (*api.Request, error) {
 		if strings.HasPrefix(m.curName, "~") {
 			continue
 		}
-		if fv.IsZero() {
-			if m.curMustSet {
-				return nil, errors.New(fmt.Sprintf("%s must have a value", m.curName))
-			}
-			if m.idSet && m.idName == m.curName && m.Val.IsZero() {
-				return nil, errors.New("field with id set must not empty")
-			}
-			continue
-		}
 		if m.idSet && m.idName == m.curName {
-			m.idVal = m.Val.Interface()
+			switch fv.Interface().(type) {
+			case string:
+				m.idVal = fv.Interface().(string)
+			case int:
+				m.idVal = fmt.Sprintf("%d", fv.Interface().(int))
+			case float64:
+				m.idVal = fmt.Sprintf("%f", fv.Interface().(float64))
+			default:
+				return nil, errors.New("unsupport id datatype")
+			}
 		}
 		setNql, err := m.setCurVal(fv)
 		if err != nil {
@@ -334,11 +463,22 @@ func (m *mutation) MakeMerge() (*api.Request, error) {
 		}
 		setNquad = append(setNquad, setNql...)
 	}
-	if m.idSet && m.idName == "" || reflect.ValueOf(m.idVal).IsZero() {
-		return nil, errors.New("id is set but id value or id name is empty")
+	if m.idSet {
+		if m.idName == "" || reflect.ValueOf(m.idVal).IsZero() {
+			return nil, errors.New("id is set but id value or id name is empty")
+		}
+		rplc := strings.NewReplacer(
+			"$type", m.Dtype,
+			"$name", m.idName,
+			"$value", fmt.Sprintf("%v", m.idVal),
+			"$uid", m.Subject,
+		)
+		q = rplc.Replace(model)
+		cond = `@if(eq(len(a),0))`
 	}
 	var req = &api.Request{
-		Mutations: []*api.Mutation{{Set: setNquad}},
+		Query:     q,
+		Mutations: []*api.Mutation{{Cond: cond, Set: setNquad}},
 	}
 	return req, nil
 }
@@ -367,17 +507,24 @@ func (m *mutation) MakeDelVal() (*api.Request, error) {
 		if fv.IsZero() {
 			continue
 		}
-		if !fv.IsZero() {
-			if m.curMustSet {
-				return nil, errors.New(
-					fmt.Sprintf("cannot delete %s with must tag", m.curName))
-			}
-			if m.idSet && m.idName == m.curName && m.Val.IsZero() {
-				return nil, errors.New("field with id set must not delete")
-			}
+		if m.curMustSet {
+			return nil, errors.New(
+				fmt.Sprintf("cannot delete %s with must tag", m.curName))
 		}
 		if m.idSet && m.idName == m.curName {
-			m.idVal = m.Val.Interface()
+			if !m.Val.IsZero() {
+				return nil, errors.New("field with id set must not delete")
+			}
+			switch fv.Interface().(type) {
+			case string:
+				m.idVal = fv.Interface().(string)
+			case int:
+				m.idVal = fmt.Sprintf("%d", fv.Interface().(int))
+			case float64:
+				m.idVal = fmt.Sprintf("%f", fv.Interface().(float64))
+			default:
+				return nil, errors.New("unsupport id datatype")
+			}
 		}
 		setNql, err := m.setCurVal(fv)
 		if err != nil {
@@ -428,19 +575,19 @@ func (m *mutation) MakeDelNode() (*api.Request, error) {
 		for k, v := range revList {
 			key := fmt.Sprintf("a%d", k)
 			valList = append(valList, strings.Trim(v, "~"))
-			rList = append(rList, fmt.Sprintf("%s as var %s", key, v))
+			rList = append(rList, fmt.Sprintf("%s as %s", key, v))
 			keyList = append(keyList, key)
 		}
 		rplc := strings.NewReplacer(
-			",$type", m.Dtype,
+			"$type", m.Dtype,
 			"$reverse", "\n"+strings.Join(rList, "\n"),
 		)
 		q = rplc.Replace(delModel)
 		for k, v := range keyList {
 			if k < len(valList) {
 				mu := &api.Mutation{
-					Cond: fmt.Sprintf("@if(uid(%s))", v),
-					Set: []*api.NQuad{
+					Cond: fmt.Sprintf("@if(gt(len(%s),0))", v),
+					Del: []*api.NQuad{
 						{
 							Subject:     fmt.Sprintf("uid(%s)", v),
 							Predicate:   valList[k],
@@ -456,23 +603,25 @@ func (m *mutation) MakeDelNode() (*api.Request, error) {
 		Query:     q,
 		Mutations: mul,
 	}
+	fmt.Println(IndentJson(req))
 	return req, nil
 }
 
 func (m *mutation) setCurVal(val reflect.Value) ([]*api.NQuad, error) {
 	var r []*api.NQuad
-	fc, ok := typeNqTypeMap[m.Dtype]
+	fc, ok := typeNqTypeMap[m.curDt]
 	if !ok {
 		return nil, errors.New("error datatype " + m.Dtype)
 	}
 	if val.Kind() != reflect.Slice {
-		nqVal, err := fc(val)
+		nqVal, nqobj, err := fc(val)
 		if err != nil {
 			return nil, err
 		}
 		nq := &api.NQuad{
 			Subject:     m.Subject,
 			Predicate:   m.curPred,
+			ObjectId:    nqobj,
 			ObjectValue: nqVal,
 			Lang:        m.curLang,
 		}
@@ -480,13 +629,14 @@ func (m *mutation) setCurVal(val reflect.Value) ([]*api.NQuad, error) {
 	} else {
 		for i := 0; i < val.Len(); i++ {
 			v := val.Index(i)
-			nqVal, err := fc(v)
+			nqVal, nqobj, err := fc(v)
 			if err != nil {
 				return nil, err
 			}
 			nq := &api.NQuad{
 				Subject:     m.Subject,
 				Predicate:   m.curPred,
+				ObjectId:    nqobj,
 				ObjectValue: nqVal,
 				Lang:        m.curLang,
 			}
@@ -503,6 +653,7 @@ func (m *mutation) delCurPred() (*api.NQuad, error) {
 	nq := &api.NQuad{
 		Subject:     m.Subject,
 		Predicate:   m.curPred,
+		ObjectId:    StarAll,
 		ObjectValue: starNqVal,
 	}
 	return nq, nil
@@ -584,4 +735,12 @@ func parseUidField(val reflect.Value) (string, string, error) {
 	}
 	dtype = fieldTp.Tag.Get(TagDtype)
 	return uid, dtype, nil
+}
+
+func IndentJson(obj interface{}) string {
+	ret, err := json.MarshalIndent(obj, "", "\t")
+	if err != nil {
+		return err.Error()
+	}
+	return string(ret)
 }
